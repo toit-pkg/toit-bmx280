@@ -4,8 +4,8 @@
 
 import encoding.tison
 import system.assets
-import bme280.provider
-import bme280 show I2C-ADDRESS I2C-ADDRESS-ALT
+import bmx280.provider
+import bmx280 show I2C-ADDRESS I2C-ADDRESS-ALT
 
 install-from-args_ args/List:
   if args.size != 3:

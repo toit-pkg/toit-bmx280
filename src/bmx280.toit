@@ -3,4 +3,8 @@
 // in the LICENSE file.
 import .driver
 
+/**
+Driver for the Bosch BMP280 and BME280 environmental sensors.
+*/
+
 export *
