@@ -1,9 +1,8 @@
-sdk: ^2.0.0-alpha.150
+sdk: ^2.0.0-alpha.196
 prefixes:
-  sensors: toit-sensors
+  sensors: github.com/toitware/toit-sensors-1
 packages:
-  toit-sensors:
-    url: github.com/toitware/toit-sensors
-    name: sensors
-    version: 1.0.0
+  github.com/toitware/toit-sensors-1:
     hash: f9f5662a0f21016259ff6907419e54d00223714a
+    url: github.com/toitware/toit-sensors
+    version: 1.0.0

@@ -1,5 +1,5 @@
-name: bme280
-description: Driver for the Bosch BME280 environmental sensor.
+name: bmx280
+description: Driver for the Bosch BMP280 and BME280 environmental sensors.
 environment:
   sdk: ^2.0.0-alpha.196
 dependencies:

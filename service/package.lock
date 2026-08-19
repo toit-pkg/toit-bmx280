@@ -1,13 +1,12 @@
-sdk: ^2.0.0-alpha.150
+sdk: ^2.0.0-alpha.196
 prefixes:
-  bme280: ..
+  bmx280: toit-bmp280
 packages:
-  ..:
+  github.com/toitware/toit-sensors-1:
+    hash: f9f5662a0f21016259ff6907419e54d00223714a
+    url: github.com/toitware/toit-sensors
+    version: 1.0.0
+  toit-bmp280:
     path: ..
     prefixes:
-      sensors: toit-sensors
-  toit-sensors:
-    url: github.com/toitware/toit-sensors
-    name: sensors
-    version: 1.0.0
-    hash: f9f5662a0f21016259ff6907419e54d00223714a
+      sensors: github.com/toitware/toit-sensors-1

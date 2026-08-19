@@ -6,11 +6,39 @@ import binary
 import serial.device as serial
 import serial.registers as serial
 
-I2C-ADDRESS     ::= 0x76
+/** Default I2C address. */
+I2C-ADDRESS ::= 0x76
+
+/** Alternate I2C address. */
 I2C-ADDRESS-ALT ::= 0x77
 
+/** BMP280 chip ID. */
+CHIP-ID-BMP280 ::= 0x58
+
+/** BME280 chip ID. */
+CHIP-ID-BME280 ::= 0x60
+
 /**
-Driver for the Bosch BME280 environmental sensor, using either I2C or SPI.
+Probes a serial $dev for a supported sensor and returns its chip ID.
+
+Returns either $CHIP-ID-BMP280 or $CHIP-ID-BME280.
+
+# Errors
+Throws `INVALID_CHIP` if the device does not identify as a BMP280 or BME280.
+*/
+probe dev/serial.Device -> int:
+  reg := dev.registers
+  tries := 5
+  while true:
+    chip-id := reg.read-u8 0xD0
+    if chip-id == CHIP-ID-BMP280 or chip-id == CHIP-ID-BME280:
+      return chip-id
+    tries--
+    if tries == 0: throw "INVALID_CHIP"
+    sleep --ms=1
+
+/**
+Driver for the Bosch BMP280 and BME280 environmental sensors, using either I2C or SPI.
 */
 class Driver:
   static DIG-T1-REG_ ::= 0x88
@@ -34,7 +62,6 @@ class Driver:
   static DIG-H5-REG_ ::= 0xE5
   static DIG-H6-REG_ ::= 0xE7
 
-  static REGISTER-CHIPID_       ::= 0xD0
   static REGISTER-VERSION_      ::= 0xD1
   static REGISTER-RESET_        ::= 0xE0
   static REGISTER-CAL26_        ::= 0xE1
@@ -47,6 +74,9 @@ class Driver:
   static REGISTER-HUMIDDATA_    ::= 0xFD
 
   reg_/serial.Registers ::= ?
+
+  /** Identifies the detected sensor model. */
+  chip-id/int ::= ?
 
   dig-T1_ := null
   dig-T2_ := null
@@ -69,17 +99,12 @@ class Driver:
   dig-H5_ := null
   dig-H6_ := null
 
+  /**
+  Constructs a driver for the sensor connected through $dev.
+  */
   constructor dev/serial.Device:
     reg_ = dev.registers
-
-    // The official Bosch sample tries to read the CHIP ID
-    // 5 times and pauses for one millisecond between the
-    // reads. We do the same.
-    tries := 5
-    while (reg_.read-u8 REGISTER-CHIPID_) != 0x60:
-      tries--
-      if tries == 0: throw "INVALID_CHIP"
-      sleep --ms=1
+    chip-id = probe dev
 
     reset_
 
@@ -89,10 +114,19 @@ class Driver:
     reg_.write-u8 REGISTER-CONTROL-MEAS_ 0b000_000_00
 
     reg_.write-u8 REGISTER-CONFIG_ 0b000_000_0_0
-    reg_.write-u8 REGISTER-CONTROL-HUM_ 0b00000_001 // Set before CONTROL (DS 5.4.3)
+    if has-humidity:
+      // Set before CONTROL-MEAS (BME280 data sheet, section 5.4.3).
+      reg_.write-u8 REGISTER-CONTROL-HUM_ 0b00000_001
 
+  /** Puts the sensor into sleep mode. */
   close:
     reg_.write-u8 REGISTER-CONTROL-MEAS_ 0b000_000_00
+
+  /**
+  Reports whether this sensor supports relative-humidity measurements.
+  */
+  has-humidity -> bool:
+    return chip-id == CHIP-ID-BME280
 
   /**
   Reads the temperature and returns it in degrees Celsius.
@@ -131,8 +165,13 @@ class Driver:
 
   /**
   Reads the relative humidity and returns it as a percent in the range `0.0 - 100.0`.
+
+  # Errors
+  Throws `HUMIDITY_NOT_SUPPORTED` when the connected sensor is a BMP280.
   */
   read-humidity -> float:
+    if not has-humidity: throw "HUMIDITY_NOT_SUPPORTED"
+
     t-fine := measure_
 
     adc-H := reg_.read-u16-be REGISTER-HUMIDDATA_
@@ -166,19 +205,20 @@ class Driver:
     dig-P8_ = reg_.read-i16-le DIG-P8-REG_
     dig-P9_ = reg_.read-i16-le DIG-P9-REG_
 
-    dig-H1_ = reg_.read-u8 DIG-H1-REG_
-    dig-H2_ = reg_.read-i16-le DIG-H2-REG_
-    dig-H3_ = reg_.read-u8 DIG-H3-REG_
-    dig-H4_ = ((reg_.read-i8 DIG-H4-REG_) << 4) | ((reg_.read-u8 DIG-H4-REG_+1) & 0xF)
-    dig-H5_ = ((reg_.read-i8 DIG-H5-REG_+1) << 4) | ((reg_.read-u8 DIG-H5-REG_) >> 4)
-    dig-H6_ = reg_.read-i8 DIG-H6-REG_
+    if has-humidity:
+      dig-H1_ = reg_.read-u8 DIG-H1-REG_
+      dig-H2_ = reg_.read-i16-le DIG-H2-REG_
+      dig-H3_ = reg_.read-u8 DIG-H3-REG_
+      dig-H4_ = ((reg_.read-i8 DIG-H4-REG_) << 4) | ((reg_.read-u8 DIG-H4-REG_+1) & 0xF)
+      dig-H5_ = ((reg_.read-i8 DIG-H5-REG_+1) << 4) | ((reg_.read-u8 DIG-H5-REG_) >> 4)
+      dig-H6_ = reg_.read-i8 DIG-H6-REG_
 
   wait-for-measurement_:
     16.repeat:
       val := reg_.read-u8 REGISTER-STATUS_
       if val & 0b1001 == 0: return
       sleep --ms=it + 1  // Back off slowly.
-    throw "BME280: Unable to measure"
+    throw "BMX280: Unable to measure"
 
   measure_:
     reg_.write-u8 REGISTER-CONTROL-MEAS_ 0b001_001_01
@@ -209,4 +249,4 @@ class Driver:
       catch:
         val := reg_.read-u8 REGISTER-STATUS_
         if val & 0b1 == 0: return
-    throw "BME280: Unable to reset"
+    throw "BMX280: Unable to reset"
